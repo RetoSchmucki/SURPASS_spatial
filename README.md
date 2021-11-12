@@ -11,8 +11,9 @@ SURPASS_spatial
 ├─ LICENSE
 ├─ README.md
 ├─ src
-├─ .gitignore
+│  ├─ classified_aoi_subset.tif
+│  └─ my_points.csv
 ├─ R
+│  └─ extract_data_from_raster.R
 └─ tutorials
 ```
-
