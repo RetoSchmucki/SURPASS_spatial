@@ -132,5 +132,19 @@ p + geom_bar(stat = "identity") +
     coord_flip()
 
 # -> todo
-# produce a pretty land cover map
-# explore show_landscape()
+
+# produce a pretty land cover map using ggplot2
+source("R/rasterdf.r")
+aoi_r_df <- rasterdf(aoi_r)
+head(aoi_r_df)
+
+ggplot(data = aoi_r_df) +
+  geom_raster(aes(x = x, y = y, fill = as.character(value))) + 
+  scale_fill_manual(name = "Land cover",
+                    values = my_lc_class$lc_class_col,
+                    labels = my_lc_class$lc_class_name,
+                    na.translate = FALSE) +
+  coord_sf(expand = F) +
+  theme(axis.title.x = element_blank(),
+        axis.title.y = element_blank(),
+        panel.background = element_rect(fill = "white", color = "black"))
