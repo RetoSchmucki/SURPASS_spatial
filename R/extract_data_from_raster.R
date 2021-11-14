@@ -6,13 +6,24 @@
 
 R
 
+if(!requireNamespace("devtools")) install.packages("devtools")
+if(!requireNamespace("sf")) install.packages("sf")
+if(!requireNamespace("terra")) install.packages("terra")
+if(!requireNamespace("data.table")) install.packages("data.talbe")
+if(!requireNamespace("ggplot2")) install.packages("ggplot2")
+if(!requireNamespace("landscapetools")) devtools::install_github("ropensci/landscapetools")
+
 library(sf)
 library(terra)
 library(data.table)
 library(ggplot2)
+library(landscapetools)
 
+# Do not evaluate (execute) this first part!
+# WARNING: raw_data are not available to other user and therefore not reproducible
+
+## START ##
 # generate a small raster to share on GitHub
-# WARNING: raw_data are not available to other user and not reproducible
 aoi_r <- terra::rast("raw_data/classified_aoi.tif")
 plot(aoi_r)
 bbox_sf <- as(as(as.polygons(draw(), crs = crs(aoi_r)), "Spatial"), "sf")
@@ -20,39 +31,41 @@ bbox_10km_sf <- st_make_grid(st_bbox(st_transform(st_buffer(st_transform(st_cent
 crop_aoi_r <- terra::crop(aoi_r, as(bbox_10km_sf, "Spatial"))
 writeRaster(crop_aoi_r, "src/classified_aoi_subset.tif", datatype = "INT1U", overwrite = TRUE)
 plot(bbox_10km_sf, add = TRUE)
+
+# generate random points for the example
+plot(crop_aoi_r)
+my_points <- st_sample(as(as(as.polygons(draw(), crs = crs(crop_aoi_r)), "Spatial"), "sf"), 10)
+my_points_csv <- data.frame(ID = paste0("PTS-",1:10), st_coordinates(my_points))
+fwrite(my_points_csv, "src/my_points.csv")
 rm(list=ls()); gc()
+## END ##
+
 
 # load raster data (GeoTiff) in R
 aoi_r <- terra::rast("src/classified_aoi_subset.tif")
 
 # define land cover class used with name, value and color)
-my_class <- data.frame(land_class_name = c("woodland", "water", "unveggetated", "shrub",
+my_lc_class <- data.frame(lc_class_name = c("woodland", "water", "unveggetated", "shrub",
                                             "urban", "grass", "crop", "montane_herb",
                                             "montane_bare"),
-                        land_class_no = c(1:9),
-                        land_class_col = c("#339470", "#05b0d6", "#987a3a", "#9ab87a",
+                        lc_class_no = c(1:9),
+                        lc_class_col = c("#339470", "#05b0d6", "#987a3a", "#9ab87a",
                                             "#e93f6f", "#a4bd00", "#ff9f1a", "#f4f2bd",
                                             "#9bc0bb"))
 
 # produce a fist land cover map from the raster
 plot(aoi_r, 
     type = "classes",
-    levels = my_class$land_class_name,
-    col = my_class$land_class_col)
-
+    levels = my_lc_class$lc_class_name,
+    col = my_lc_class$lc_class_col)
 
 # add points or polygons on the raster map
-# generate random points for the example
-my_points <- st_sample(as(as(as.polygons(draw(), crs = crs(aoi_r)), "Spatial"), "sf"), 10)
-my_points_csv <- data.frame(ID = paste0("PTS-",1:10), st_coordinates(my_points))
-fwrite(my_points_csv, "src/my_points.csv")
-
 my_points <- fread("src/my_points.csv")
 my_points_sf <- st_as_sf(my_points, coords = c("X", "Y"), crs = 4326)
 plot(st_geometry(my_points_sf), col = "yellow", pch = 19, cex = 1.5, add = TRUE)
 
 # build 750 meters buffer around each points
-# transform to equal area projection (Argentina, EPSG:5343)
+# transform to equal area projection (Argentina, EPSG:5343) ## need confirmation/verification
 my_buffers <- st_transform(st_buffer(st_transform(my_points_sf, 5343), 750), 4326)
 plot(my_buffers, border= "black", lwd = 1.5, add = TRUE)
 
@@ -66,6 +79,7 @@ my_extract_dt <- merge(my_extract_dt, my_class, by.x = "classification", by.y = 
 my_extract_dt[, land_class_name := factor(land_class_name, levels = my_class$land_class_name)]
 my_extract_dt[, ID := factor(ID, levels = 10:1)]
 
+# produce a bar plot with land cover proportion per within 750 meteres radius landscapes around points 1 to 10
 
 p <- ggplot(data = my_extract_dt, aes(x = ID, y = perct, fill = land_class_name))
 p + geom_bar(stat = "identity") +
@@ -102,3 +116,7 @@ p + geom_bar(stat = "identity") +
         title = "SURPASS Land Cover Map"
     ) +
     coord_flip()
+
+# -> todo
+# produce a pretty land cover map
+# explore show_landscape()
