@@ -20,28 +20,42 @@ library(ggplot2)
 library(landscapetools)
 
 # Do not evaluate (execute) this first part!
-# WARNING: raw_data are not available to other user and therefore not reproducible
+# WARNING: raw_data are not available from the GitHub repo, but are accessed from the cloud reproducible
 
 ## START ##
 # generate a small raster to share on GitHub
-aoi_r <- terra::rast("raw_data/classified_aoi.tif")
+aoi_r_url <- "https://filedn.com/l4iF16owVCHBm81sGhdrcpX/raw_data/classified_aoi.tif"
+aoi_r <- terra::rast(aoi_r_url)
+
+# define a smaller bounding box (10km) around a central point (lon = -71.55, lat = -42)
+centroid_pnt <- st_as_sf(data.frame(id = "pt1", lon = -71.55, lat = -42), coords = c("lon", "lat"), crs = 4326)
+bbox_10km_sf <- st_make_grid(st_bbox(st_transform(st_buffer(st_transform(centroid_pnt, 5343), 10000), 4326)), n = 1, what = "polygons")
+
+# visualise in a figure the original raster and the new bounding box defined around the point
 plot(aoi_r)
-bbox_sf <- as(as(as.polygons(draw(), crs = crs(aoi_r)), "Spatial"), "sf")
-bbox_10km_sf <- st_make_grid(st_bbox(st_transform(st_buffer(st_transform(st_centroid(bbox_sf), 5343), 10000), 4326)), n = 1, what = "polygons")
-crop_aoi_r <- terra::crop(aoi_r, as(bbox_10km_sf, "Spatial"))
-writeRaster(crop_aoi_r, "src/classified_aoi_subset.tif", datatype = "INT1U", overwrite = TRUE)
 plot(bbox_10km_sf, add = TRUE)
 
-# generate random points for the example
-plot(crop_aoi_r)
-my_points <- st_sample(as(as(as.polygons(draw(), crs = crs(crop_aoi_r)), "Spatial"), "sf"), 10)
+# crop the larger raster, using the bounding box as cookie cutter
+crop_aoi_r <- terra::crop(aoi_r, as(bbox_10km_sf, "Spatial"))
+writeRaster(crop_aoi_r, "src/classified_aoi_subset.tif", datatype = "INT1U", overwrite = TRUE)
+
+# generate random points for this example.
+set.seed(235398) #set the seed for random number generation and reproducibility
+
+# restrict the sample within 1500 meters from the edges.
+my_points <- st_sample(st_transform(st_buffer(st_transform(bbox_10km_sf, 5343), -1500), 4326) , 10)
+plot(st_geometry(my_points), pch = 19, add = TRUE)
+
+# get points coordinates and save in a .csv
 my_points_csv <- data.frame(ID = paste0("PTS-",1:10), st_coordinates(my_points))
 fwrite(my_points_csv, "src/my_points.csv")
+
+# clear all objects
 rm(list=ls()); gc()
 ## END ##
 
 
-# load raster data (GeoTiff) in R
+# load the smaller raster data (GeoTiff) generated above
 aoi_r <- terra::rast("src/classified_aoi_subset.tif")
 
 # define land cover class used with name, value and color)
@@ -59,31 +73,31 @@ plot(aoi_r,
     levels = my_lc_class$lc_class_name,
     col = my_lc_class$lc_class_col)
 
-# add points or polygons on the raster map
+# add points to the raster map
 my_points <- fread("src/my_points.csv")
 my_points_sf <- st_as_sf(my_points, coords = c("X", "Y"), crs = 4326)
 plot(st_geometry(my_points_sf), col = "yellow", pch = 19, cex = 1.5, add = TRUE)
 
 # build 750 meters buffer around each points
-# transform to equal area projection (Argentina, EPSG:5343) ## need confirmation/verification
+# transform to equal area projection (Argentina, EPSG:5343) 
 my_buffers <- st_transform(st_buffer(st_transform(my_points_sf, 5343), 750), 4326)
-plot(my_buffers, border= "black", lwd = 1.5, add = TRUE)
+plot(my_buffers, col = NA, border= "black", lwd = 1.5, add = TRUE)
 
 #extract value from raster for each buffer
 my_extract <- extract(aoi_r, vect(as(my_buffers, "Spatial")))
 
 my_extract_dt <- data.table(my_extract)
 my_extract_dt <- my_extract_dt[, totalN := .N, by = ID][, .N, by = .(ID, classification, totalN)][, perct := N/totalN]
-my_extract_dt <- merge(my_extract_dt, my_class, by.x = "classification", by.y = "land_class_no")[order(ID, classification),]
+my_extract_dt <- merge(my_extract_dt, my_lc_class, by.x = "classification", by.y = "lc_class_no")[order(ID, classification),]
 
-my_extract_dt[, land_class_name := factor(land_class_name, levels = my_class$land_class_name)]
+my_extract_dt[, lc_class_name := factor(lc_class_name, levels = rev(my_lc_class$lc_class_name))]
 my_extract_dt[, ID := factor(ID, levels = 10:1)]
 
 # produce a bar plot with land cover proportion per within 750 meteres radius landscapes around points 1 to 10
 
-p <- ggplot(data = my_extract_dt, aes(x = ID, y = perct, fill = land_class_name))
+p <- ggplot(data = my_extract_dt, aes(x = ID, y = perct, fill = lc_class_name))
 p + geom_bar(stat = "identity") +
-    scale_fill_manual(name = "classification", values = my_class$land_class_col) +
+    scale_fill_manual(name = "classification", values = rev(my_lc_class$lc_class_col)) +
     scale_y_continuous(labels = scales::percent, expand = expansion(mult = c(0, 0.03))) +
     geom_hline(yintercept = c(0, 0.25, 0.5, 0.75), color = "grey50", linetype = 2) +
     geom_hline(yintercept = c(0), color = "grey25", linetype = 1) +
