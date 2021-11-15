@@ -6,14 +6,26 @@ As most processes in ecology are spatially structured and strongly dependent of 
 ### Organisation
 The repository is organised with R and Rmd scripts located in `R`, data and resources in `src` and tutorials in `tutorials`.
 
+
 ```
 SURPASS_spatial
 ├─ LICENSE
-├─ README.md
 ├─ src
+│  ├─ my_points.csv
 │  ├─ classified_aoi_subset.tif
-│  └─ my_points.csv
+│  └─ arg_road_aoi
+│     ├─ arg_road_aoi.shp
+│     ├─ arg_road_aoi.shx
+│     ├─ arg_road_aoi.dbf
+│     ├─ arg_road_aoi.prj
+│     ├─ road_r.tif
+│     └─ road_r_distance.tif
 ├─ R
-│  └─ extract_data_from_raster.R
-└─ tutorials
+│  ├─ extract_data_from_raster.R
+│  ├─ rasterdf.r
+│  ├─ distance_to_road_raster.r
+│  └─ grass_setup.R
+├─ tutorials
+└─ README.md
+
 ```
