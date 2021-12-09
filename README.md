@@ -26,6 +26,6 @@ SURPASS_spatial
 │  ├─ distance_to_road_raster.r
 │  └─ grass_setup.R
 ├─ tutorials
+│  └─ map_raster_latam.Rmd
 └─ README.md
-
 ```
