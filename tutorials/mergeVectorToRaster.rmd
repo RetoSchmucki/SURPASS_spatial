@@ -1,0 +1,68 @@
+---
+title: "Integrating vector data into existing raster"
+output: github_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Objective
+We want to augment the information contained in a raster file (e.g., land cover map) with information that was digitized in a vector format (e.g., lines, points or polygons). 
+
+## Strategy
+1. Convert the vector information into a raster file, using the same reference grid (origin, resolution and projection) as the raster we want to augment.
+2. Replace the NA value from the newly created raster with the value contained in the first.
+
+## Example
+
+#### preambule
+```{r build_raster}
+library(terra)
+lc_raster <- rast(xmin=0, xmax=1, ymin=45, ymax=46, crs = "EPSG:4326", res=0.1, 
+                vals= matrix(nrow = 10, ncol = 10, byrow = TRUE,
+                        data = c(1,1,1,1,1,1,1,1,1,1,
+                                1,2,2,2,2,1,1,1,1,1,
+                                1,2,2,2,2,2,1,1,1,1,
+                                2,2,2,2,2,2,1,1,1,1,
+                                2,2,2,2,2,1,1,1,4,4,
+                                2,2,2,1,1,1,1,4,4,4,
+                                1,1,1,1,1,1,3,3,3,1,
+                                1,1,1,3,3,3,3,3,1,1,
+                                1,1,1,1,3,3,3,3,1,1,
+                                1,1,1,1,1,1,1,1,1,1)),
+                name = "landcover")
+lc_raster <- disagg(lc_raster, fact = 4)
+plot(lc_raster, col = c("dodgerblue", "orange", "tomato4", "magenta"))
+```
+
+```{r build_vector}
+library(sf)
+library(tidyverse)
+hedgerow_pts_df <- data.frame(x = c(seq(0.3, 0.7, by = 0.1), seq(0.7, 0.4, by = -0.1)),
+                              y = c(seq(45, 46, by=0.1)[seq_along(c(seq(0.3, 0.7, by = 0.1), seq(0.7, 0.4, by = -0.1)))]),
+                              type = c(rep(1, length(seq(0.3, 0.7, by = 0.1))), rep(2, length(seq(0.7, 0.4, by = -0.1)))))
+hedgerow_pts_sf <- sf::st_as_sf(hedgerow_pts_df, coords = c("x","y"), crs = 4326)
+hedgerow_line_sf <- hedgerow_pts_sf %>% group_by(type) %>% summarize() %>% st_cast("LINESTRING")
+plot(hedgerow_line_sf)
+```
+
+#### Step 1.
+```{r rasterize_line}
+hedgerow_raster <- rasterize(vect(st_buffer(hedgerow_line_sf, 10)), lc_raster, field = 'type', touches = TRUE)
+plot(hedgerow_raster)
+plot(st_buffer(hedgerow_line_sf, 10), add = TRUE)
+
+grid_sf <- st_make_grid(st_bbox(lc_raster), cellsize = res(lc_raster)) 
+plot(grid_sf, border = 'grey80', add = TRUE)
+```
+
+#### Step 2.
+```{r merge_raster}
+hedgerow_raster[] <- hedgerow_raster[] + max(values(lc_raster))
+hedgerow_lc_raster <- cover(hedgerow_raster, lc_raster)
+
+coltab(hedgerow_lc_raster) <- c("NA", "magenta", "cyan4", "orange", "brown", "green", "green")
+levels(hedgerow_lc_raster) <- c("NA", "urban", "grassland", "arable", "baresoil", "hedgerow", "hedgerow")
+plot(hedgerow_lc_raster)
+```
